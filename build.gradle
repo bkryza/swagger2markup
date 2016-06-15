@@ -36,7 +36,9 @@ repositories {
     maven {
         url "https://oss.jfrog.org/artifactory/oss-snapshot-local"
     }
-    jcenter()
+    maven {
+        url "https://jcenter.bintray.com"
+    }
     mavenCentral()
     //mavenLocal()
 }
