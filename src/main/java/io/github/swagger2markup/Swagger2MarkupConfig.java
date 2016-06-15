@@ -203,4 +203,10 @@ public interface Swagger2MarkupConfig {
      * @return the extension properties
      */
     Swagger2MarkupProperties getExtensionsProperties();
+
+    int getGitbookTOCOffset();
+
+    int getGitbookTOCIndent();
+
+    String getGitbookTOCBasePath();
 }

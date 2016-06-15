@@ -207,11 +207,7 @@ public abstract class MarkupDocumentBuilder {
                         descriptionContent.newLine(true);
                     descriptionContent.boldText(DEFAULT_COLUMN).text(COLON).literalText(Json.pretty(defaultValue));
                 }
-                if (example != null) {
-                    if (isNotBlank(description) || defaultValue != null)
-                        descriptionContent.newLine(true);
-                    descriptionContent.boldText(EXAMPLE_COLUMN).text(COLON).literalText(Json.pretty(example));
-                }
+
 
                 List<String> content = Arrays.asList(
                         propertyNameContent.toString(),
@@ -221,6 +217,9 @@ public abstract class MarkupDocumentBuilder {
                 cells.add(content);
             }
             docBuilder.tableWithColumnSpecs(cols, cells);
+
+
+
         } else {
             docBuilder.textLine(NO_CONTENT);
         }

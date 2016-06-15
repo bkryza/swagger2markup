@@ -17,6 +17,7 @@ version = '1.0.1-SNAPSHOT'
 group = 'io.github.swagger2markup'
 
 apply plugin: 'java'
+apply plugin: 'maven-publish'
 apply from: 'gradle/publishing.gradle'
 apply from: 'gradle/coverage.gradle'
 apply from: 'gradle/documentation.gradle'
@@ -49,6 +50,8 @@ dependencies {
     testCompile 'ch.qos.logback:logback-classic:1.1.2'
     testCompile 'org.assertj:assertj-core:3.4.0'
     testCompile 'io.github.robwin:assertj-diff:0.1.1'
+    compile 'io.airlift:airline:0.7'
+    compile 'ch.qos.logback:logback-classic:1.1.2'
 }
 
 test {

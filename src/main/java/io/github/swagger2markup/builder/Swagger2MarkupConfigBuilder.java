@@ -126,6 +126,23 @@ public class Swagger2MarkupConfigBuilder  {
         if(lineSeparator.isPresent() && StringUtils.isNoneBlank(lineSeparator.get())){
             config.lineSeparator = LineSeparator.valueOf(lineSeparator.get());
         }
+        Optional<String> gitbookOffset = swagger2MarkupProperties.getString(GITBOOK_TOC_OFFSET);
+        if(gitbookOffset.isPresent() && StringUtils.isNoneBlank(gitbookOffset.get())){
+            config.gitbookTOCOffset = Integer.parseInt(gitbookOffset.get());
+        }
+        else
+            config.gitbookTOCOffset = 0;
+        Optional<String> gitbookIndent = swagger2MarkupProperties.getString(GITBOOK_TOC_INDENT);
+        if(gitbookIndent.isPresent() && StringUtils.isNoneBlank(gitbookIndent.get())){
+            config.gitbookTOCIndent = Integer.parseInt(gitbookIndent.get());
+        }
+        else
+            config.gitbookTOCOffset = 2;
+        Optional<String> gitbookBasePath = swagger2MarkupProperties.getString(GITBOOK_TOC_BASE_PATH);
+        if(gitbookBasePath.isPresent() && StringUtils.isNoneBlank(gitbookBasePath.get())){
+            config.gitbookTOCBasePath = gitbookBasePath.get();
+        }
+
 
         Configuration swagger2markupConfiguration = compositeConfiguration.subset(PROPERTIES_PREFIX);
         Configuration extensionsConfiguration = swagger2markupConfiguration.subset(EXTENSION_PREFIX);
@@ -170,6 +187,7 @@ public class Swagger2MarkupConfigBuilder  {
             config.propertyOrdering = Ordering.natural();
         if (config.responseOrderBy == OrderBy.NATURAL)
             config.responseOrdering = Ordering.natural();
+
     }
 
     /**
@@ -517,6 +535,9 @@ public class Swagger2MarkupConfigBuilder  {
         private boolean flatBodyEnabled;
         private String anchorPrefix;
         private LineSeparator lineSeparator;
+        private int gitbookTOCOffset;
+        private int gitbookTOCIndent;
+        private String gitbookTOCBasePath;
 
         private String overviewDocument;
         private String pathsDocument;
@@ -686,5 +707,14 @@ public class Swagger2MarkupConfigBuilder  {
         public Swagger2MarkupProperties getExtensionsProperties() {
             return extensionsProperties;
         }
+
+        @Override
+        public int getGitbookTOCOffset() { return gitbookTOCOffset; }
+
+        @Override
+        public int getGitbookTOCIndent() { return gitbookTOCIndent; }
+
+        @Override
+        public String getGitbookTOCBasePath() { return gitbookTOCBasePath; }
     }
 }

@@ -15,6 +15,9 @@
  */
 package io.github.swagger2markup.internal.document.builder;
 
+import com.google.common.base.*;
+import com.google.common.collect.Multimap;
+import io.github.swagger2markup.GroupBy;
 import io.github.swagger2markup.Swagger2MarkupConverter;
 import io.github.swagger2markup.Swagger2MarkupExtensionRegistry;
 import io.github.swagger2markup.internal.document.MarkupDocument;
@@ -22,23 +25,36 @@ import io.github.swagger2markup.internal.type.ObjectType;
 import io.github.swagger2markup.internal.type.ObjectTypePolymorphism;
 import io.github.swagger2markup.internal.type.Type;
 import io.github.swagger2markup.internal.utils.ModelUtils;
+import io.github.swagger2markup.internal.utils.TagUtils;
 import io.github.swagger2markup.markup.builder.MarkupDocBuilder;
+import io.github.swagger2markup.markup.builder.MarkupTableColumn;
+import io.github.swagger2markup.model.PathOperation;
 import io.github.swagger2markup.spi.DefinitionsDocumentExtension;
 import io.swagger.models.Model;
+import io.swagger.models.Tag;
+import io.swagger.util.Json;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 
 import static io.github.swagger2markup.internal.utils.MapUtils.toKeySet;
+import static io.github.swagger2markup.internal.utils.TagUtils.convertTagsListToMap;
+import static io.github.swagger2markup.internal.utils.TagUtils.getTagDescription;
 import static io.github.swagger2markup.spi.DefinitionsDocumentExtension.Context;
 import static io.github.swagger2markup.spi.DefinitionsDocumentExtension.Position;
 import static io.github.swagger2markup.utils.IOUtils.normalizeName;
+import static java.nio.file.StandardOpenOption.APPEND;
+import static java.nio.file.StandardOpenOption.CREATE;
 import static org.apache.commons.lang3.StringUtils.defaultString;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
 
@@ -94,6 +110,7 @@ public class DefinitionsDocumentBuilder extends MarkupDocumentBuilder {
             applyDefinitionsDocumentExtension(new Context(Position.DOCUMENT_BEFORE, this.markupDocBuilder));
             buildDefinitionsTitle(DEFINITIONS);
             applyDefinitionsDocumentExtension(new Context(Position.DOCUMENT_BEGIN, this.markupDocBuilder));
+            buildDefinitionsTOC();
             buildDefinitionsSection();
             applyDefinitionsDocumentExtension(new Context(Position.DOCUMENT_END, this.markupDocBuilder));
             applyDefinitionsDocumentExtension(new Context(Position.DOCUMENT_AFTER, this.markupDocBuilder));
@@ -103,14 +120,29 @@ public class DefinitionsDocumentBuilder extends MarkupDocumentBuilder {
 
     private void buildDefinitionsSection() {
         Set<String> definitionNames = toKeySet(globalContext.getSwagger().getDefinitions(), config.getDefinitionOrdering());
+
+        List<MarkupTableColumn> columnHeaders = Arrays.asList(
+                new MarkupTableColumn().withHeader("Type"),
+                new MarkupTableColumn().withHeader("Description"));
+        List<List<String>> cells = new LinkedList<>();
+
         for (String definitionName : definitionNames) {
             Model model = globalContext.getSwagger().getDefinitions().get(definitionName);
             if (isNotBlank(definitionName)) {
                 if (checkThatDefinitionIsNotInIgnoreList(definitionName)) {
+
+
+                        List<String> cell = Arrays.asList(
+                                "["+definitionName+"]("+resolveDefinitionDocument(definitionName)+")",
+                                model.getDescription());
+                        cells.add(cell);
                     buildDefinition(definitionName, model);
+
+                    /*
                     if (logger.isInfoEnabled()) {
                         logger.info("Definition processed : '{}'", definitionName);
                     }
+                    */
                 } else {
                     if (logger.isDebugEnabled()) {
                         logger.debug("Definition was ignored : '{}'", definitionName);
@@ -118,6 +150,35 @@ public class DefinitionsDocumentBuilder extends MarkupDocumentBuilder {
                 }
             }
         }
+        markupDocBuilder.tableWithColumnSpecs(columnHeaders, cells);
+
+    }
+
+    private void buildDefinitionsTOC() {
+        Set<String> definitionNames = toKeySet(globalContext.getSwagger().getDefinitions(), config.getDefinitionOrdering());
+        String baseIndent = StringUtils.repeat(' ', globalContext.getConfig().getGitbookTOCOffset());
+
+        String basePath = globalContext.getConfig().getGitbookTOCBasePath();
+        if(!basePath.endsWith("/"))
+            basePath = basePath+"/";
+
+        if (CollectionUtils.isNotEmpty(definitionNames)) {
+            java.nio.file.Path definitionsTOCFile = outputPath.resolve("DEFINITIONS_TOC.md");
+            try (OutputStream out = new BufferedOutputStream(Files.newOutputStream(definitionsTOCFile, CREATE, APPEND))) {
+
+                for(String definitionName : definitionNames) {
+                    out.write((baseIndent+"* ["+definitionName+"]("+basePath+resolveDefinitionDocument(definitionName)+")").getBytes());
+                    out.write('\r'); out.write('\n');
+                }
+
+                out.close();
+            }
+
+            catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
     }
 
     private void buildDefinitionsTitle(String title) {
@@ -165,7 +226,7 @@ public class DefinitionsDocumentBuilder extends MarkupDocumentBuilder {
                 logger.info("Separate definition file produced : '{}'", definitionFile);
             }
 
-            definitionRef(definitionName, this.markupDocBuilder);
+            //definitionRef(definitionName, this.markupDocBuilder);
 
         } else {
             buildDefinition(definitionName, model, this.markupDocBuilder);
@@ -195,6 +256,10 @@ public class DefinitionsDocumentBuilder extends MarkupDocumentBuilder {
         applyDefinitionsDocumentExtension(new Context(Position.DEFINITION_BEGIN, docBuilder, definitionName, model));
         buildDescriptionParagraph(model, docBuilder);
         inlineDefinitions(typeSection(definitionName, model, docBuilder), definitionName, docBuilder);
+        Object example = model.getExample();
+        if (example != null) {
+            docBuilder.boldText(EXAMPLE_COLUMN).newLine().listingBlock(Json.pretty(example));
+        }
         applyDefinitionsDocumentExtension(new Context(Position.DEFINITION_END, docBuilder, definitionName, model));
         applyDefinitionsDocumentExtension(new Context(Position.DEFINITION_AFTER, docBuilder, definitionName, model));
     }

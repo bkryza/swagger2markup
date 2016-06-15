@@ -38,9 +38,12 @@ jar {
                 'Specification-Title': "${project.name}",
                 'Specification-Version': project.version.toString(),
                 'Implementation-Title': "${project.name}",
-                'Implementation-Version': project.version.toString()
+                'Implementation-Version': project.version.toString(),
+                'Main-Class': 'io.github.swagger2markup.cli.Application'
+
         )
     }
+    from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
 }
 
 if (!project.hasProperty('bintrayUsername')) ext.bintrayUsername = ''

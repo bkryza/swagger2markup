@@ -62,6 +62,9 @@ public class Swagger2MarkupProperties {
     public static final String PROPERTY_ORDER_BY = PROPERTIES_PREFIX + ".propertyOrderBy";
     public static final String RESPONSE_ORDER_BY = PROPERTIES_PREFIX + ".responseOrderBy";
     public static final String LINE_SEPARATOR = PROPERTIES_PREFIX + ".lineSeparator";
+    public static final String GITBOOK_TOC_OFFSET = PROPERTIES_PREFIX + ".gitbookTOCOffset";
+    public static final String GITBOOK_TOC_INDENT = PROPERTIES_PREFIX + ".gitbookTOCIndent";
+    public static final String GITBOOK_TOC_BASE_PATH = PROPERTIES_PREFIX + ".gitbookTOCBasePath";
 
     /**
      * Prefix for Swagger2Markup extension properties

@@ -21,6 +21,7 @@ import com.google.common.collect.Multimap;
 import io.github.swagger2markup.GroupBy;
 import io.github.swagger2markup.Swagger2MarkupConverter;
 import io.github.swagger2markup.Swagger2MarkupExtensionRegistry;
+import io.github.swagger2markup.Swagger2MarkupProperties;
 import io.github.swagger2markup.internal.document.MarkupDocument;
 import io.github.swagger2markup.internal.type.ObjectType;
 import io.github.swagger2markup.internal.type.Type;
@@ -29,6 +30,7 @@ import io.github.swagger2markup.internal.utils.ParameterUtils;
 import io.github.swagger2markup.internal.utils.PropertyUtils;
 import io.github.swagger2markup.internal.utils.TagUtils;
 import io.github.swagger2markup.markup.builder.*;
+import io.github.swagger2markup.markup.builder.internal.Markup;
 import io.github.swagger2markup.model.PathOperation;
 import io.github.swagger2markup.spi.PathsDocumentExtension;
 import io.swagger.models.*;
@@ -43,8 +45,13 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
 import org.apache.commons.lang3.text.WordUtils;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
 import java.util.*;
 
 import static io.github.swagger2markup.internal.utils.ListUtils.toSet;
@@ -54,6 +61,8 @@ import static io.github.swagger2markup.internal.utils.TagUtils.getTagDescription
 import static io.github.swagger2markup.spi.PathsDocumentExtension.Context;
 import static io.github.swagger2markup.spi.PathsDocumentExtension.Position;
 import static io.github.swagger2markup.utils.IOUtils.normalizeName;
+import static java.nio.file.StandardOpenOption.APPEND;
+import static java.nio.file.StandardOpenOption.CREATE;
 import static org.apache.commons.lang3.StringUtils.defaultString;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
 
@@ -133,14 +142,65 @@ public class PathsDocumentBuilder extends MarkupDocumentBuilder {
     public MarkupDocument build() {
         Map<String, Path> paths = globalContext.getSwagger().getPaths();
         if (MapUtils.isNotEmpty(paths)) {
-            applyPathsDocumentExtension(new Context(Position.DOCUMENT_BEFORE, this.markupDocBuilder));
+            // Generate operations index
+            buildsPathsTOC(paths);
+            //applyPathsDocumentExtension(new Context(Position.DOCUMENT_BEFORE, this.markupDocBuilder));
             buildPathsTitle();
-            applyPathsDocumentExtension(new Context(Position.DOCUMENT_BEGIN, this.markupDocBuilder));
+            //applyPathsDocumentExtension(new Context(Position.DOCUMENT_BEGIN, this.markupDocBuilder));
             buildsPathsSection(paths);
             applyPathsDocumentExtension(new Context(Position.DOCUMENT_END, this.markupDocBuilder));
             applyPathsDocumentExtension(new Context(Position.DOCUMENT_AFTER, this.markupDocBuilder));
         }
         return new MarkupDocument(markupDocBuilder);
+    }
+
+    private void buildsPathsTOC(Map<String, Path> paths) {
+        Set<PathOperation> pathOperations = toPathOperationsSet(paths);
+        String baseIndent = StringUtils.repeat(' ', globalContext.getConfig().getGitbookTOCOffset());
+        String tagIndent = StringUtils.repeat(' ',
+                globalContext.getConfig().getGitbookTOCOffset()+globalContext.getConfig().getGitbookTOCIndent());
+        String basePath = globalContext.getConfig().getGitbookTOCBasePath();
+        if(!basePath.endsWith("/"))
+            basePath = basePath+"/";
+
+        if (CollectionUtils.isNotEmpty(pathOperations)) {
+            java.nio.file.Path pathTOCFile = outputPath.resolve("PATHS_TOC.md");
+            try (OutputStream out = new BufferedOutputStream(Files.newOutputStream(pathTOCFile, CREATE, APPEND))) {
+
+                if (config.getPathsGroupedBy() == GroupBy.AS_IS) {
+                    for (PathOperation operation : pathOperations) {
+                        out.write((baseIndent+"* ["+operation.getTitle()+"]("+basePath+resolveOperationDocument(operation)+")").getBytes());
+                        out.write('\r'); out.write('\n');
+                    }
+                }
+                else {
+                    Multimap<String, PathOperation> operationsGroupedByTag = TagUtils.groupOperationsByTag(pathOperations, config.getTagOrdering(), config.getOperationOrdering());
+                    Map<String, Tag> tagsMap = convertTagsListToMap(globalContext.getSwagger().getTags());
+                    for (String tagName : operationsGroupedByTag.keySet()) {
+                        //this.markupDocBuilder.sectionTitleWithAnchorLevel2(WordUtils.capitalize(tagName), tagName + "_resource");
+                        out.write((baseIndent+"* ["+tagName+"]("+basePath+resolveOperationDocument(operationsGroupedByTag.get(tagName).iterator().next())+")").getBytes());
+                        out.write('\r'); out.write('\n');
+
+                        Optional<String> tagDescription = getTagDescription(tagsMap, tagName);
+                        //if (tagDescription.isPresent()) {
+                            //this.markupDocBuilder.paragraph(tagDescription.get());
+                        //}
+
+                        for (PathOperation operation : operationsGroupedByTag.get(tagName)) {
+                            buildOperation(operation);
+                            out.write((tagIndent+"* ["+operation.getTitle()+"]("+basePath+resolveOperationDocument(operation)+")").getBytes());
+                            out.write('\r'); out.write('\n');
+                        }
+                    }
+                }
+                out.close();
+            }
+            catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+
     }
 
     private void buildsPathsSection(Map<String, Path> paths) {
@@ -150,7 +210,8 @@ public class PathsDocumentBuilder extends MarkupDocumentBuilder {
                 for (PathOperation operation : pathOperations) {
                     buildOperation(operation);
                 }
-            } else {
+            }
+            else {
                 Multimap<String, PathOperation> operationsGroupedByTag = TagUtils.groupOperationsByTag(pathOperations, config.getTagOrdering(), config.getOperationOrdering());
                 Map<String, Tag> tagsMap = convertTagsListToMap(globalContext.getSwagger().getTags());
                 for (String tagName : operationsGroupedByTag.keySet()) {
@@ -161,9 +222,23 @@ public class PathsDocumentBuilder extends MarkupDocumentBuilder {
                         this.markupDocBuilder.paragraph(tagDescription.get());
                     }
 
+
+                    List<MarkupTableColumn> columnHeaders = Arrays.asList(
+                            new MarkupTableColumn().withHeader("Path"),
+                            new MarkupTableColumn().withHeader("Method"),
+                            new MarkupTableColumn().withHeader("Description"));
+                    List<List<String>> cells = new LinkedList<>();
+
                     for (PathOperation operation : operationsGroupedByTag.get(tagName)) {
-                        buildOperation(operation);
+                        List<String> cell = Arrays.asList(
+                                "["+operation.getPath()+"]("+resolveOperationDocument(operation)+")",
+                                operation.getMethod().name().toUpperCase(),
+                                operation.getTitle());
+                        cells.add(cell);
                     }
+
+                    markupDocBuilder.tableWithColumnSpecs(columnHeaders, cells);
+
                 }
             }
         }
@@ -176,7 +251,7 @@ public class PathsDocumentBuilder extends MarkupDocumentBuilder {
         if (config.getPathsGroupedBy() == GroupBy.AS_IS) {
             buildPathsTitle(PATHS);
         } else {
-            buildPathsTitle(RESOURCES);
+            buildPathsTitle(PATHS);
         }
     }
 
@@ -194,7 +269,8 @@ public class PathsDocumentBuilder extends MarkupDocumentBuilder {
             pathOperations = new LinkedHashSet<>();
         }
         for (Map.Entry<String, Path> path : paths.entrySet()) {
-            Map<HttpMethod, Operation> operations = path.getValue().getOperationMap(); // TODO AS_IS does not work because of https://github.com/swagger-api/swagger-core/issues/1696
+            // TODO AS_IS does not work because of https://github.com/swagger-api/swagger-core/issues/1696
+            Map<HttpMethod, Operation> operations = path.getValue().getOperationMap();
             if (MapUtils.isNotEmpty(operations)) {
                 for (Map.Entry<HttpMethod, Operation> operation : operations.entrySet()) {
                     pathOperations.add(new PathOperation(operation.getKey(), path.getKey(), operation.getValue()));
@@ -205,7 +281,8 @@ public class PathsDocumentBuilder extends MarkupDocumentBuilder {
     }
 
     private void buildPathsTitle(String title) {
-        this.markupDocBuilder.sectionTitleWithAnchorLevel1(title, PATHS_ANCHOR);
+        //this.markupDocBuilder.sectionTitleWithAnchorLevel1(title, PATHS_ANCHOR);
+        this.markupDocBuilder.sectionTitleWithAnchorLevel(1, title, PATHS_ANCHOR);
     }
 
     /**
@@ -241,13 +318,14 @@ public class PathsDocumentBuilder extends MarkupDocumentBuilder {
         if (config.isSeparatedOperationsEnabled()) {
             MarkupDocBuilder pathDocBuilder = copyMarkupDocBuilder();
             buildOperation(operation, pathDocBuilder);
+
             java.nio.file.Path operationFile = outputPath.resolve(resolveOperationDocument(operation));
             pathDocBuilder.writeToFileWithoutExtension(operationFile, StandardCharsets.UTF_8);
             if (logger.isInfoEnabled()) {
                 logger.info("Separate operation file produced : '{}'", operationFile);
             }
 
-            buildOperationRef(operation, this.markupDocBuilder);
+            //buildOperationRef(operation, this.markupDocBuilder);
 
         } else {
             buildOperation(operation, this.markupDocBuilder);
@@ -451,7 +529,7 @@ public class PathsDocumentBuilder extends MarkupDocumentBuilder {
                             parameterNameContent.toString(),
                             defaultString(swaggerMarkupDescription(parameter.getDescription())),
                             type.displaySchema(markupDocBuilder),
-                            defaultValue != null ? literalText(Json.pretty(defaultValue)) : "");
+                            defaultValue != null ? literalText(Json.pretty(defaultValue)) : "--");
                     cells.add(content);
                 }
             }
