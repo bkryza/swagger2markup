@@ -128,6 +128,7 @@ public class DefinitionsDocumentBuilder extends MarkupDocumentBuilder {
 
         for (String definitionName : definitionNames) {
             Model model = globalContext.getSwagger().getDefinitions().get(definitionName);
+
             if (isNotBlank(definitionName)) {
                 if (checkThatDefinitionIsNotInIgnoreList(definitionName)) {
 
@@ -136,7 +137,13 @@ public class DefinitionsDocumentBuilder extends MarkupDocumentBuilder {
                                 "["+definitionName+"]("+resolveDefinitionDocument(definitionName)+")",
                                 model.getDescription());
                         cells.add(cell);
-                    buildDefinition(definitionName, model);
+
+                    if(model == null) {
+                        System.out.println("NO MODEL FOR DEFINITION ===========>>>>>>  "+definitionName);
+                    }
+                    else {
+                        buildDefinition(definitionName, model);
+                    }
 
                     /*
                     if (logger.isInfoEnabled()) {
@@ -296,6 +303,8 @@ public class DefinitionsDocumentBuilder extends MarkupDocumentBuilder {
      */
     private List<ObjectType> typeSection(String definitionName, Model model, MarkupDocBuilder docBuilder) {
         List<ObjectType> inlineDefinitions = new ArrayList<>();
+        System.out.println("Processing definition: "+definitionName+" using model: "+model.getDescription()+":"+model.toString()+":"+model.getReference()+":"+model.getTitle());
+
         Type modelType = ModelUtils.resolveRefType(ModelUtils.getType(model, globalContext.getSwagger().getDefinitions(), new DefinitionDocumentResolverFromDefinition()));
 
         if (!(modelType instanceof ObjectType)) {

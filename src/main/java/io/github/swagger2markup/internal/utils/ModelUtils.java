@@ -21,6 +21,7 @@ import io.github.swagger2markup.internal.type.*;
 import io.swagger.models.*;
 import io.swagger.models.properties.Property;
 import io.swagger.models.refs.RefFormat;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
 
 import java.util.HashMap;
@@ -38,10 +39,13 @@ public final class ModelUtils {
         if (type == null)
             return null;
 
-        if (type instanceof RefType)
+        if (type instanceof RefType) {
+            System.out.println("Resolving type: "+type.getName()+":"+type.toString());
             return resolveRefType(((RefType) type).getRefType());
-        else
+        }
+        else {
             return type;
+        }
     }
 
     /**
@@ -53,22 +57,8 @@ public final class ModelUtils {
      */
     public static Type getType(Model model, Map<String, Model> definitions, Function<String, String> definitionDocumentResolver) {
         Validate.notNull(model, "model must not be null!");
-        if (model instanceof ModelImpl) {
-            ModelImpl modelImpl = (ModelImpl) model;
-
-            if (modelImpl.getAdditionalProperties() != null)
-                return new MapType(modelImpl.getTitle(), PropertyUtils.getType(modelImpl.getAdditionalProperties(), definitionDocumentResolver));
-            else if (modelImpl.getEnum() != null)
-                return new EnumType(modelImpl.getTitle(), modelImpl.getEnum());
-            else if (modelImpl.getProperties() != null) {
-                ObjectType objectType = new ObjectType(modelImpl.getTitle(), model.getProperties());
-
-                objectType.getPolymorphism().setDiscriminator(modelImpl.getDiscriminator());
-
-                return objectType;
-            } else
-                return new BasicType(modelImpl.getType(), modelImpl.getTitle());
-        } else if (model instanceof ComposedModel) {
+        System.out.println("Getting type of model: "+model.toString()+":::"+ StringUtils.join(model.getProperties(), ","));
+         if (model instanceof ComposedModel) {
             ComposedModel composedModel = (ComposedModel) model;
             Map<String, Property> allProperties = new LinkedHashMap<>();
             ObjectTypePolymorphism polymorphism = new ObjectTypePolymorphism(ObjectTypePolymorphism.Nature.NONE, null);
@@ -97,7 +87,37 @@ public final class ModelUtils {
             }
             
             return new ObjectType(name, polymorphism, allProperties);
-        } else if (model instanceof RefModel) {
+        }
+        else if (model instanceof ModelImpl) {
+            ModelImpl modelImpl = (ModelImpl) model;
+
+            if (modelImpl.getAdditionalProperties() != null)
+                return new MapType(modelImpl.getTitle(), PropertyUtils.getType(modelImpl.getAdditionalProperties(), definitionDocumentResolver));
+            else if (modelImpl.getEnum() != null)
+                return new EnumType(modelImpl.getTitle(), modelImpl.getEnum());
+            else if (modelImpl.getProperties() != null) {
+                ObjectType objectType = new ObjectType(modelImpl.getTitle(), model.getProperties());
+
+                objectType.getPolymorphism().setDiscriminator(modelImpl.getDiscriminator());
+
+                return objectType;
+            } else {
+                String type = modelImpl.getType();
+                String title = modelImpl.getTitle();
+
+                if(type == null) {
+                    System.out.println("Warning: Basic type has no type!");
+                    type = "object";
+                }
+                if(title == null) {
+                    System.out.println("Warning: Basic type has to title");
+                    title = "-inline";
+                }
+
+                return new BasicType(type, title);
+            }
+        }
+         else if (model instanceof RefModel) {
             RefModel refModel = (RefModel) model;
             String refName = refModel.getRefFormat().equals(RefFormat.INTERNAL) ? refModel.getSimpleRef() : refModel.getReference();
 
