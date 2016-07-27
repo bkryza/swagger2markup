@@ -18,7 +18,7 @@ public class OperationExtensions extends PathsDocumentExtension {
     @Override
     public void init(Swagger2MarkupConverter.Context globalContext) {
         /* init is executed once */
-        Swagger2MarkupProperties extensionProperties = globalContext.getConfig().getExtensionsProperties(); 
+       // Swagger2MarkupProperties extensionProperties = globalContext.getConfig().getExtensionsProperties();
         //extensionProperty = extensionProperties.getRequiredString(EXTENSION_ID + ".propertyName");
         //Swagger model = globalContext.getSwagger();
 
@@ -40,9 +40,9 @@ public class OperationExtensions extends PathsDocumentExtension {
 
                 System.out.println("GENERATING LINK TO OPERATION");
                 markupBuilder.paragraph("[" + operation.getPath() + "](" + targetFile + ")");
-            } else {
+            }
+            else {
                 System.out.println("GENERATING HASH TO OPERATION");
-
                 markupBuilder.paragraph("[" + operation.getPath() + "]()");
             }
         }

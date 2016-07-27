@@ -38,6 +38,7 @@ import io.swagger.models.auth.SecuritySchemeDefinition;
 import io.swagger.models.parameters.Parameter;
 import io.swagger.models.properties.Property;
 import io.swagger.util.Json;
+import javafx.scene.shape.PathElement;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.BooleanUtils;
@@ -177,16 +178,27 @@ public class PathsDocumentBuilder extends MarkupDocumentBuilder {
                     Multimap<String, PathOperation> operationsGroupedByTag = TagUtils.groupOperationsByTag(pathOperations, config.getTagOrdering(), config.getOperationOrdering());
                     Map<String, Tag> tagsMap = convertTagsListToMap(globalContext.getSwagger().getTags());
                     for (String tagName : operationsGroupedByTag.keySet()) {
-                        //this.markupDocBuilder.sectionTitleWithAnchorLevel2(WordUtils.capitalize(tagName), tagName + "_resource");
-                        out.write((baseIndent+"* ["+tagName+"]("+basePath+resolveOperationDocument(operationsGroupedByTag.get(tagName).iterator().next())+")").getBytes());
+                        //
+                        // The tag TOC entry should have an empty link which will resolve
+                        // to the first item in the gitbook entry
+                        //
+                        out.write((baseIndent+"* ["+tagName+"]()").getBytes());
                         out.write('\r'); out.write('\n');
 
                         Optional<String> tagDescription = getTagDescription(tagsMap, tagName);
-                        //if (tagDescription.isPresent()) {
-                            //this.markupDocBuilder.paragraph(tagDescription.get());
-                        //}
 
-                        for (PathOperation operation : operationsGroupedByTag.get(tagName)) {
+                        //
+                        // Sort the operations based on their title
+                        //
+                        List<PathOperation> operationsSorted = new LinkedList<>(operationsGroupedByTag.get(tagName));
+                        operationsSorted.sort(new Comparator<PathOperation>() {
+                            @Override
+                            public int compare(PathOperation op1, PathOperation op2) {
+                                return op1.getTitle().compareTo(op2.getTitle());
+                            }
+                        });
+
+                        for (PathOperation operation : operationsSorted) {
                             buildOperation(operation);
                             out.write((tagIndent+"* ["+operation.getTitle()+"]("+basePath+resolveOperationDocument(operation)+")").getBytes());
                             out.write('\r'); out.write('\n');
@@ -212,7 +224,11 @@ public class PathsDocumentBuilder extends MarkupDocumentBuilder {
                 }
             }
             else {
-                Multimap<String, PathOperation> operationsGroupedByTag = TagUtils.groupOperationsByTag(pathOperations, config.getTagOrdering(), config.getOperationOrdering());
+                Multimap<String, PathOperation> operationsGroupedByTag
+                        = TagUtils.groupOperationsByTag(pathOperations,
+                                                        config.getTagOrdering(),
+                                                        config.getOperationOrdering());
+
                 Map<String, Tag> tagsMap = convertTagsListToMap(globalContext.getSwagger().getTags());
                 for (String tagName : operationsGroupedByTag.keySet()) {
                     this.markupDocBuilder.sectionTitleWithAnchorLevel2(WordUtils.capitalize(tagName), tagName + "_resource");

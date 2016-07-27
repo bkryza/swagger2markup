@@ -110,7 +110,7 @@ public final class ModelUtils {
                     type = "object";
                 }
                 if(title == null) {
-                    System.out.println("Warning: Basic type has to title");
+                    System.out.println("Warning: Basic type has no title");
                     title = "-inline";
                 }
 
